@@ -97,14 +97,8 @@ All outputs are validated against a strict model:
 Reason:
 Guarantees compliance with the subject and prevents invalid outputs.
 
-3. Post-processing fixes
 
-Certain cases (e.g. formatting templates) are corrected after generation.
-
-Reason:
-LLMs are probabilistic → deterministic corrections ensure correctness.
-
-4. Environment-based configuration
+3. Environment-based configuration
 
 The model can be changed via environment variable:
 ```bash
@@ -113,22 +107,6 @@ CALLMEMAYBE_MODEL=Qwen/Qwen3-0.6B
 
 Reason:
 Supports multiple models without modifying the code.
-
-5. Debug logging system (Bonus)
-
-Optional debug mode:
-```bash
-CALLMEMAYBE_DEBUG=1 uv run python -m src
-```
-
-Generates:
-```
-data/output/generation_debug.log
-```
-
-Contains:
-- raw LLM output
-- extracted JSON
 
 ---
 
@@ -152,7 +130,7 @@ Optimizations:
 Accuracy is ensured through:
 - strict validation
 - controlled decoding
-- post-processing fixes (Partially)
+- strict argument validation
 
 ### Reliability
 
@@ -200,9 +178,8 @@ Problem:
 Same prompt → different outputs
 
 Solution:
+- constrained function selection
 - deterministic validation
-- post-processing corrections
-
 ---
 
 ## Testing Strategy
@@ -237,25 +214,6 @@ AI was used to:
 Core logic and decisions were implemented and validated manually.
 
 ---
-
-## Bonus Features
-
-Implemented:
-1. Multiple model support
-
-Selectable via environment variable:
-```bash
-CALLMEMAYBE_MODEL=<model>
-```
-
-2. Debug / visualization system
-
-Logs full generation process:
-- raw output
-- extracted JSON
-
----
-
 ## Project Structure
 ```
 src/
