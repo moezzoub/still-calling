@@ -1,88 +1,46 @@
+import json
 import os
-from pydantic import ValidationError
 from typing import Any
+
 from llm_sdk import Small_LLM_Model
-from .models import PromptItem, FunctionDefinition, FunctionCall
+
+from .models import FunctionCall, FunctionDefinition, PromptItem
 
 
 MODEL_NAME = os.getenv("CALLMEMAYBE_MODEL", "Qwen/Qwen3-0.6B")
 LLM = Small_LLM_Model(model_name=MODEL_NAME)
 
-DEBUG_MODE = os.getenv("CALLMEMAYBE_DEBUG", "0") == "1"
-DEBUG_LOG_PATH = "data/output/generation_debug.log"
+
+def encode_text(text: str) -> list[int]:
+    return LLM.encode(text).tolist()[0]
 
 
-def debug_log(message: str) -> None:
-    """Log a debug message when debug mode is enabled."""
-    if not DEBUG_MODE:
-        return
-    os.makedirs("data/output", exist_ok=True)
-    with open(DEBUG_LOG_PATH, "a", encoding="utf-8") as file:
-        file.write(message + "\n")
+def decode_tokens(tokens: list[int]) -> str:
+    return LLM.decode(tokens)
 
 
-def generate_text(prompt: str, max_tokens: int) -> str | Any:
-    """Generate only the model output suffix and stop early when a full JSON
-    object appears complete."""
-    input_ids = LLM.encode(prompt).tolist()[0]
-    prompt_len = len(input_ids)
-    generated_text = ""
+def generate_text(prompt: str, max_tokens: int = 80) -> str:
+    input_ids = encode_text(prompt)
+    start = len(input_ids)
 
     for _ in range(max_tokens):
         logits = LLM.get_logits_from_input_ids(input_ids)
-        next_token_id = logits.index(max(logits))
-        input_ids.append(next_token_id)
+        next_token = logits.index(max(logits))
+        input_ids.append(next_token)
 
-        generated_text = LLM.decode(input_ids[prompt_len:])
-        generated_text = generated_text.replace("```json", "")
-        generated_text = generated_text.replace("```", "").strip()
+        text = decode_tokens(input_ids[start:])
+        if "}" in text:
+            return text.replace("```json", "").replace("```", "").strip()
 
-        try:
-            extract_first_json_object(generated_text)
-            return generated_text
-        except ValueError:
-            continue
-    return generated_text
-
-
-def build_llm_prompt(one_prompt: PromptItem,
-                     function_definitions: list[FunctionDefinition],
-                     ) -> str:
-    """Build the prompt sent to the LLM."""
-    prompt = "You have to select the correct function "
-    prompt += "based on a user request.\n"
-    prompt += "MUST return ONLY valid JSON.\n"
-    prompt += "If the request asks to replace, substitute, or transform "
-    prompt += "matching parts of a string, choose the regex substitution "
-    prompt += "function, not a math function.\n"
-    prompt += "- If the request asks to replace numbers inside a string, "
-    prompt += "use fn_substitute_string_with_regex, not a math function.\n"
-    prompt += "For square root request, do NOT split one number into numbers."
-
-    prompt += "\nAvailable functions:\n"
-    for index, func in enumerate(function_definitions, start=1):
-        param_str = ", ".join(
-            f"{name}: {parameter.type}"
-            for name, parameter in func.parameters.items()
-        )
-        prompt += f"{index} - {func.name}({param_str}) - {func.description}\n"
-
-    prompt += "\nUser request:\n"
-    prompt += one_prompt.prompt + "\n"
-
-    prompt += "\nReturn only one JSON object with two fields:\n"
-    prompt += "- function: the function name\n"
-    prompt += "- arguments: an object containing the arguments\n"
-    return prompt
+    return decode_tokens(input_ids[start:]).strip()
 
 
 def extract_first_json_object(text: str) -> str:
-    """Extract the first complete JSON object from text."""
     start = text.find("{")
     if start == -1:
-        raise ValueError("No JSON object found in LLM response.")
+        raise ValueError("No JSON object found.")
 
-    brace_count = 0
+    depth = 0
     in_string = False
     escaped = False
 
@@ -99,44 +57,162 @@ def extract_first_json_object(text: str) -> str:
         if char == '"':
             in_string = True
         elif char == "{":
-            brace_count += 1
+            depth += 1
         elif char == "}":
-            brace_count -= 1
+            depth -= 1
+            if depth == 0:
+                return text[start:start + index + 1]
 
-            if brace_count == 0:
-                end = start + index + 1
-                return text[start:end]
+    raise ValueError("No complete JSON object found.")
 
-    raise ValueError("No complete JSON object found in LLM response.")
+
+def build_function_prompt(
+    prompt: PromptItem,
+    functions: list[FunctionDefinition],
+) -> str:
+    text = "Choose the best function for the user request.\n"
+    text += "Return only the function name.\n\n"
+    text += "Available functions:\n"
+
+    for function in functions:
+        params = ", ".join(
+            f"{name}: {param.type}"
+            for name, param in function.parameters.items()
+        )
+        text += f"- {function.name}({params}): {function.description}\n"
+
+    text += f"\nUser request: {prompt.prompt}\n"
+    text += "Function name:"
+    return text
+
+
+def choose_function_name(
+    prompt: PromptItem,
+    functions: list[FunctionDefinition],
+) -> str:
+    input_tokens = encode_text(build_function_prompt(prompt, functions))
+    candidates = [encode_text(function.name) for function in functions]
+    answer: list[int] = []
+    position = 0
+
+    while candidates and position < max(len(item) for item in candidates):
+        allowed = {
+            item[position]
+            for item in candidates
+            if position < len(item)
+        }
+
+        if len(allowed) == 1:
+            chosen = next(iter(allowed))
+        else:
+            logits = LLM.get_logits_from_input_ids(input_tokens + answer)
+            masked = [-float("inf")] * len(logits)
+            for token_id in allowed:
+                masked[token_id] = logits[token_id]
+            chosen = masked.index(max(masked))
+
+        answer.append(chosen)
+        candidates = [
+            item for item in candidates
+            if position < len(item) and item[position] == chosen
+        ]
+        position += 1
+
+        if len(candidates) == 1 and position == len(candidates[0]):
+            break
+
+    function_name = decode_tokens(answer).strip()
+    valid_names = {function.name for function in functions}
+
+    if function_name not in valid_names:
+        raise ValueError(f"Invalid function selected: {function_name}")
+
+    return function_name
+
+
+def find_function(
+    function_name: str,
+    functions: list[FunctionDefinition],
+) -> FunctionDefinition:
+    for function in functions:
+        if function.name == function_name:
+            return function
+
+    raise ValueError(f"Function not found: {function_name}")
+
+
+def build_arguments_prompt(
+    prompt: PromptItem,
+    function: FunctionDefinition,
+) -> str:
+    text = "Extract the arguments for the selected function.\n"
+    text += "Return only one JSON object.\n\n"
+    text += f"User request: {prompt.prompt}\n"
+    text += f"Function name: {function.name}\n"
+    text += f"Function description: {function.description}\n"
+    text += "Required arguments:\n"
+
+    for name, param in function.parameters.items():
+        text += f"- {name}: {param.type}\n"
+
+    text += "\nJSON arguments:"
+    return text
+
+
+def extract_arguments(
+    prompt: PromptItem,
+    function: FunctionDefinition,
+) -> dict[str, Any]:
+    raw = generate_text(build_arguments_prompt(prompt, function), max_tokens=80)
+    json_text = extract_first_json_object(raw)
+    arguments = json.loads(json_text)
+
+    if not isinstance(arguments, dict):
+        raise ValueError("Arguments must be a JSON object.")
+
+    return arguments
+
+
+def convert_value(value: Any, expected_type: str) -> Any:
+    if expected_type == "number":
+        return float(value)
+    if expected_type == "integer":
+        return int(value)
+    if expected_type == "boolean":
+        if isinstance(value, bool):
+            return value
+        return str(value).lower() in {"true", "1", "yes"}
+    if expected_type == "string":
+        return str(value)
+    return value
+
+
+def normalize_arguments(
+    arguments: dict[str, Any],
+    function: FunctionDefinition,
+) -> dict[str, Any]:
+    expected = set(function.parameters.keys())
+    received = set(arguments.keys())
+
+    if expected != received:
+        raise ValueError(
+            f"Bad arguments for {function.name}: "
+            f"expected {expected}, got {received}"
+        )
+
+    return {
+        name: convert_value(arguments[name], param.type)
+        for name, param in function.parameters.items()
+    }
 
 
 def generate_function_call(
-     prompt: PromptItem, fd: list[FunctionDefinition]) -> FunctionCall | Any:
-    """Generate, extract, and validate a function call."""
-    raw_model_prompt = build_llm_prompt(prompt, fd)
-    raw_output = generate_text(raw_model_prompt, max_tokens=50)
+    prompt: PromptItem,
+    fd: list[FunctionDefinition],
+) -> FunctionCall:
+    function_name = choose_function_name(prompt, fd)
+    function = find_function(function_name, fd)
+    raw_arguments = extract_arguments(prompt, function)
+    arguments = normalize_arguments(raw_arguments, function)
 
-    debug_log("=" * 80)
-    debug_log(f"PROMPT: {prompt.prompt}")
-    debug_log("RAW OUTPUT:")
-    debug_log(raw_output)
-
-    generated_only = raw_output.strip()
-    generated_only = generated_only.replace("```json", "").replace("```", "")
-
-    answer_pos = generated_only.rfind("Answer:")
-    if answer_pos != -1:
-        search_zone = generated_only[answer_pos + len("Answer:"):].strip()
-    else:
-        search_zone = generated_only
-
-    json_text = extract_first_json_object(search_zone)
-
-    debug_log("EXTRACTED JSON:")
-    debug_log(json_text)
-
-    try:
-        return FunctionCall.model_validate_json(json_text)
-    except ValidationError as exc:
-        raise ValueError(
-            "No valid JSON output found in LLM response.") from exc
+    return FunctionCall(function=function_name, arguments=arguments)

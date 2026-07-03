@@ -63,7 +63,7 @@ def main() -> None:
         results.append({
             "prompt": one_prompt.prompt,
             "name": result.function,
-            "parameters": result.arguments,
+            "args": result.arguments,
         })
     try:
         write_function_calls(args.output, results)
