@@ -62,7 +62,7 @@ def main() -> None:
 
         results.append({
             "prompt": one_prompt.prompt,
-            "name": result.function,
+            "fn_name": result.function,
             "args": result.arguments,
         })
     try:
