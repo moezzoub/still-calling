@@ -9,10 +9,10 @@ def load_function_definitions(path: str) -> list[FunctionDefinition]:
     checks that the loaded data is a list of dictionaries before attempting to
     validate it against the FunctionDefinition model."""
     try:
-        with open(path, 'r') as f:
+        with open(path, 'r') as e:
 
             try:
-                data = json.load(f)
+                data = json.load(e)
             except json.JSONDecodeError:
                 raise ValueError(
                     f"Error: The file {path} contains invalid JSON.")
@@ -29,9 +29,9 @@ def load_function_definitions(path: str) -> list[FunctionDefinition]:
     try:
         function_definitions = [
             FunctionDefinition.model_validate(item) for item in data]
-    except ValidationError as e:
+    except ValidationError as f:
         raise ValueError(f"Error: The file {path} contains invalid function "
-                         f"definitions: {e}")
+                         f"definitions: {f}")
     return function_definitions
 
 
@@ -41,10 +41,10 @@ def load_prompt_items(path: str) -> list[PromptItem]:
     the loaded data is a list of dictionaries before attempting to validate it
     against the PromptItem model."""
     try:
-        with open(path, 'r') as f:
+        with open(path, 'r') as e:
 
             try:
-                data = json.load(f)
+                data = json.load(e)
             except json.JSONDecodeError:
                 raise ValueError(
                     f"Error: The file {path} contains invalid JSON.")
@@ -61,7 +61,7 @@ def load_prompt_items(path: str) -> list[PromptItem]:
     try:
         prompt_items = [
             PromptItem.model_validate(item) for item in data]
-    except ValidationError as e:
+    except ValidationError as f:
         raise ValueError(f"Error: The file {path} contains invalid "
-                         f"prompt items: {e}")
+                         f"prompt items: {f}")
     return prompt_items

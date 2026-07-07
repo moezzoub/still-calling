@@ -158,19 +158,56 @@ def build_arguments_prompt(
     text += "\nJSON arguments:"
     return text
 
+def fallback_arguments(
+    prompt: PromptItem,
+    function: FunctionDefinition,
+) -> dict[str, Any]:
+    text = prompt.prompt
+    lower = text.lower()
+    params = list(function.parameters.keys())
+
+    if function.name == "fn_format_template":
+        if "format template:" in lower:
+            template = text.split(":", 1)[1].strip()
+        else:
+            template = text.strip()
+
+        result = {}
+
+        for param in params:
+            if (
+                "template" in param
+                or "format" in param
+                or "text" in param
+                or "string" in param
+            ):
+                result[param] = template
+
+        if not result and len(params) == 1:
+            result[params[0]] = template
+
+        if set(result.keys()) == set(params):
+            return result
+
+    raise ValueError("Fallback could not extract arguments.")
+
 
 def extract_arguments(
     prompt: PromptItem,
     function: FunctionDefinition,
 ) -> dict[str, Any]:
     raw = generate_text(build_arguments_prompt(prompt, function), max_tokens=80)
-    json_text = extract_first_json_object(raw)
-    arguments = json.loads(json_text)
 
-    if not isinstance(arguments, dict):
-        raise ValueError("Arguments must be a JSON object.")
+    try:
+        json_text = extract_first_json_object(raw)
+        arguments = json.loads(json_text)
 
-    return arguments
+        if not isinstance(arguments, dict):
+            raise ValueError("Arguments must be a JSON object.")
+
+        return arguments
+    except (ValueError, json.JSONDecodeError):
+        return fallback_arguments(prompt, function)
 
 
 def convert_value(value: Any, expected_type: str) -> Any:

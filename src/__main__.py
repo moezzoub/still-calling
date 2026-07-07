@@ -22,27 +22,27 @@ def main() -> None:
     """Main function to execute the program."""
     args = parse_args()
     try:
-        fd = load_function_definitions(args.functions_definition)
+        funcD = load_function_definitions(args.functions_definition)
     except (FileNotFoundError, ValueError) as e:
         print(f"Error loading function definitions: {e}")
         exit(1)
 
     try:
-        pi = load_prompt_items(args.input)
+        prompt = load_prompt_items(args.input)
     except (FileNotFoundError, ValueError) as e:
         print(f"Error loading prompt items: {e}")
         exit(1)
 
     results = []
-    for one_prompt in pi:
+    for prompt1 in prompt:
         try:
-            result = generate_function_call(one_prompt, fd)
+            result = generate_function_call(prompt1, funcD)
         except ValueError as e:
-            print(f"Error generating FC for prompt '{one_prompt.prompt}':{e}")
+            print(f"Error generating FC for prompt '{prompt1.prompt}':{e}")
             continue
 
         matched_function = None
-        for function in fd:
+        for function in funcD:
             if result.function == function.name:
                 matched_function = function
                 break
@@ -50,20 +50,20 @@ def main() -> None:
         if matched_function is None:
             print(f"Warning: Generated function '{result.function}' "
                   "does not match any defined function for prompt: "
-                  f"{one_prompt.prompt}")
+                  f"{prompt1.prompt}")
         else:
             expected_keys = set(matched_function.parameters.keys())
             result_keys = set(result.arguments.keys())
 
             if expected_keys != result_keys:
                 print(f"Warning: Bad arguments for prompt: "
-                      f"{one_prompt.prompt}")
+                      f"{prompt1.prompt}")
                 print(result)
 
         results.append({
-            "prompt": one_prompt.prompt,
-            "fn_name": result.function,
-            "args": result.arguments,
+            "prompt": prompt1.prompt,
+            "name": result.function,
+            "parameters": result.arguments,
         })
     try:
         write_function_calls(args.output, results)
