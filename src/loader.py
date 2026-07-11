@@ -23,16 +23,22 @@ def load_function_definitions(path: str) -> list[FunctionDefinition]:
     if not isinstance(data, list):
         raise ValueError(f"Error: The file {path} does not contain a list of "
                          "function definitions.")
-    if not all(isinstance(item, dict) for item in data):
-        raise ValueError(f"Error: The file {path} contains invalid function "
-                         "definitions.")
-    try:
-        function_definitions = [
-            FunctionDefinition.model_validate(item) for item in data]
-    except ValidationError as f:
-        raise ValueError(f"Error: The file {path} contains invalid function "
-                         f"definitions: {f}")
-    return function_definitions
+
+    functions_definition = []
+    for index, item in enumerate(data):
+        if not isinstance(item, dict):
+            print(f"Error: the function item #{index + 1}"
+                  f"is not a object, skip")
+            continue
+        try:
+            functions_definition.append(
+                FunctionDefinition.model_validate(item)
+                )
+        except ValidationError as f:
+            print(f"Error : the function item #{index + 1}"
+                  f" is invalid: {f}. skip.")
+            continue
+    return functions_definition
 
 
 def load_prompt_items(path: str) -> list[PromptItem]:
@@ -55,13 +61,16 @@ def load_prompt_items(path: str) -> list[PromptItem]:
     if not isinstance(data, list):
         raise ValueError(f"Error: The file {path} does not contain a "
                          "list of prompts.")
-    if not all(isinstance(item, dict) for item in data):
-        raise ValueError(f"Error: The file {path} contains invalid "
-                         "prompt items.")
-    try:
-        prompt_items = [
-            PromptItem.model_validate(item) for item in data]
-    except ValidationError as f:
-        raise ValueError(f"Error: The file {path} contains invalid "
-                         f"prompt items: {f}")
+
+    prompt_items = []
+    for index, item in enumerate(data):
+        if not isinstance(item, dict):
+            print(f"Error: prompt item #{index + 1}"
+                  f"is not an object, skip.")
+            continue
+        try:
+            prompt_items.append(PromptItem.model_validate(item))
+        except ValidationError as e:
+            print(f"Error: prompt item #{index + 1} is invalid: {e}. skip.")
+            continue
     return prompt_items

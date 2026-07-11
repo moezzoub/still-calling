@@ -1,7 +1,7 @@
-.PHONY: install run debug clean lint lint-strict build
 
 install:
-	uv sync
+	uv venv
+	uv sync --all-groups
 
 run:
 	uv run python -m src
@@ -10,14 +10,17 @@ debug:
 	uv run python -m pdb -m src
 
 clean:
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	rm -rf __pycache__ .mypy_cache .pytest_cache
+	rm -rf src/__pycache__ llm_sdk/__pycache__
+	find . -name "*.pyc" -delete
 
 lint:
-	flake8 . --exclude=data,llm_sdk
-	mypy . --exclude llm_sdk --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs --follow-imports=skip
+	uv run flake8 src
+	uv run mypy src --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs --exclude '/llm_sdk/'
+
 lint-strict:
-	flake8 . --exclude=data,llm_sdk
-	mypy . --strict --follow-imports=skip
+	uv run flake8 src
+	uv run mypy src --strict
+
+
+.PHONY: install run debug clean lint lint-strict

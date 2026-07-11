@@ -12,7 +12,9 @@ LLM = Small_LLM_Model(model_name=MODEL_NAME)
 
 
 def encode_text(text: str) -> list[int]:
-    return LLM.encode(text).tolist()[0]
+    """Encode text into a list of token IDs."""
+    token_ids = LLM.encode(text).tolist()[0]
+    return [int(token_id) for token_id in token_ids]
 
 
 def decode_tokens(tokens: list[int]) -> str:
@@ -158,6 +160,7 @@ def build_arguments_prompt(
     text += "\nJSON arguments:"
     return text
 
+
 def fallback_arguments(
     prompt: PromptItem,
     function: FunctionDefinition,
@@ -196,7 +199,9 @@ def extract_arguments(
     prompt: PromptItem,
     function: FunctionDefinition,
 ) -> dict[str, Any]:
-    raw = generate_text(build_arguments_prompt(prompt, function), max_tokens=80)
+    raw = generate_text(
+        build_arguments_prompt(prompt, function), max_tokens=80
+        )
 
     try:
         json_text = extract_first_json_object(raw)

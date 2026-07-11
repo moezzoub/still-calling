@@ -19,57 +19,61 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Main function to execute the program."""
-    args = parse_args()
     try:
-        funcD = load_function_definitions(args.functions_definition)
-    except (FileNotFoundError, ValueError) as e:
-        print(f"Error loading function definitions: {e}")
-        exit(1)
-
-    try:
-        prompt = load_prompt_items(args.input)
-    except (FileNotFoundError, ValueError) as e:
-        print(f"Error loading prompt items: {e}")
-        exit(1)
-
-    results = []
-    for prompt1 in prompt:
+        """Main function to execute the program."""
+        args = parse_args()
         try:
-            result = generate_function_call(prompt1, funcD)
-        except ValueError as e:
-            print(f"Error generating FC for prompt '{prompt1.prompt}':{e}")
-            continue
+            funcD = load_function_definitions(args.functions_definition)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"Error loading function definitions: {e}")
+            exit(1)
 
-        matched_function = None
-        for function in funcD:
-            if result.function == function.name:
-                matched_function = function
-                break
+        try:
+            prompt = load_prompt_items(args.input)
+        except (FileNotFoundError, ValueError) as e:
+            print(f"Error loading prompt items: {e}")
+            exit(1)
 
-        if matched_function is None:
-            print(f"Warning: Generated function '{result.function}' "
-                  "does not match any defined function for prompt: "
-                  f"{prompt1.prompt}")
-        else:
-            expected_keys = set(matched_function.parameters.keys())
-            result_keys = set(result.arguments.keys())
+        results = []
+        for prompt1 in prompt:
+            try:
+                result = generate_function_call(prompt1, funcD)
+            except ValueError as e:
+                print(f"Error generating FC for prompt '{prompt1.prompt}':{e}")
+                continue
 
-            if expected_keys != result_keys:
-                print(f"Warning: Bad arguments for prompt: "
+            matched_function = None
+            for function in funcD:
+                if result.function == function.name:
+                    matched_function = function
+                    break
+
+            if matched_function is None:
+                print(f"Warning: Generated function '{result.function}' "
+                      f"does not match any defined function for prompt: "
                       f"{prompt1.prompt}")
-                print(result)
+            else:
+                expected_keys = set(matched_function.parameters.keys())
+                result_keys = set(result.arguments.keys())
 
-        results.append({
-            "prompt": prompt1.prompt,
-            "name": result.function,
-            "parameters": result.arguments,
-        })
-    try:
-        write_function_calls(args.output, results)
-    except OSError as e:
-        print(f"Error writing function calls: {e}")
-        exit(1)
+                if expected_keys != result_keys:
+                    print(f"Warning: Bad arguments for prompt: "
+                          f"{prompt1.prompt}")
+                    print(result)
+
+            results.append({
+                "prompt": prompt1.prompt,
+                "name": result.function,
+                "parameters": result.arguments,
+            })
+        try:
+            write_function_calls(args.output, results)
+        except OSError as e:
+            print(f"Error writing function calls: {e}")
+            exit(1)
+
+    except KeyboardInterrupt:
+        print("\n❌ User interrupt program")
 
 
 if __name__ == "__main__":
