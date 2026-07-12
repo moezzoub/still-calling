@@ -252,9 +252,9 @@ def generate_function_call(
     prompt: PromptItem,
     fd: list[FunctionDefinition],
 ) -> FunctionCall:
-    function_name = choose_function_name(prompt, fd)
-    function = find_function(function_name, fd)
+    function_namee = choose_function_name(prompt, fd)
+    function = find_function(function_namee, fd)
     raw_arguments = extract_arguments(prompt, function)
     arguments = normalize_arguments(raw_arguments, function)
 
-    return FunctionCall(function=function_name, arguments=arguments)
+    return FunctionCall(function=function_namee, arguments=arguments)
