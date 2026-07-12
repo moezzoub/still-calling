@@ -1,15 +1,15 @@
 [
   {
-    "prompt": "What is the sum of 2 and 3?"
+    "prompt": "What is the sum of 2 and * ?"
   },
   {
-    "prompt": "What is the sum of 265 and 345?"
+    "promp": "What is the sum of 265 and (345)?"
   },
   {
     "prompt": "Greet shrek"
   },
   {
-    "prompt": "Greet john"
+    "prompt": ""
   },
   {
     "prompt": "Reverse the string 'hello'"

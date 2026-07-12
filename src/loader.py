@@ -64,7 +64,9 @@ def load_prompt_items(path: str) -> list[PromptItem]:
 
     prompt_items = []
     for index, item in enumerate(data):
-        if not isinstance(item, dict):
+        for key, value in item.items():
+            value_check = value
+        if not isinstance(item, dict) or not value_check:
             print(f"Error: prompt item #{index + 1}"
                   f"is not an object, skip.")
             continue
